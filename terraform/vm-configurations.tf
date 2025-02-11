@@ -64,7 +64,7 @@ resource "azurerm_windows_virtual_machine" "vms" {
 
   os_disk {
     caching              = "ReadWrite"
-    storage_account_type = "Standard_LRS"
+    storage_account_type = "Premium_LRS"
   }
 
   source_image_reference {
@@ -73,4 +73,20 @@ resource "azurerm_windows_virtual_machine" "vms" {
     sku       = "win11-24h2-pro"
     version   = "latest"
   }
+}
+
+resource "azurerm_virtual_machine_extension" "driver_extensions" {
+  for_each                   = var.vm_configurations
+  name                       = "${each.value.name}-driver"
+  virtual_machine_id         = azurerm_windows_virtual_machine.vms[each.key].id
+  publisher                  = "Microsoft.HpcCompute"
+  type                       = "NvidiaGpuDriverWindows"
+  type_handler_version       = "1.9"
+  auto_upgrade_minor_version = false
+  settings                   = <<SETTINGS
+    { 
+      "rebootAllowed": false,
+      "installGridNC": true
+    }
+  SETTINGS
 }
