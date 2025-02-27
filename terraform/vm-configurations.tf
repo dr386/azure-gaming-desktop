@@ -74,3 +74,18 @@ resource "azurerm_windows_virtual_machine" "vms" {
     version   = "latest"
   }
 }
+
+resource "azurerm_virtual_machine_extension" "driver_extensions" {
+  for_each                   = var.vm_configurations
+  name                       = "${each.value.name}-driver"
+  virtual_machine_id         = azurerm_windows_virtual_machine.vms[each.key].id
+  publisher                  = "Microsoft.HpcCompute"
+  type                       = "NvidiaGpuDriverWindows"
+  type_handler_version       = "1.9"
+  auto_upgrade_minor_version = false
+  settings                   = <<SETTINGS
+    {
+      "InstallGridNC": "true"
+    }
+  SETTINGS
+}
