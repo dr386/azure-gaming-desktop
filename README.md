@@ -1,16 +1,14 @@
 # Cloud Gaming Made Easy
 
-## Update 1/11/2020
-
-1. You no longer need to use ZeroTier VPN. Steam can now stream games from outside your LAN. When deploying your VM, leave the "Network ID" field empty.
-2. The [NV-series](https://docs.microsoft.com/en-us/azure/virtual-machines/sizes-gpu) VMs deployed in this guide do not support Premium SSD. If you want Premium SSD, use [NVv3-series](https://docs.microsoft.com/en-us/azure/virtual-machines/nvv3-series). If you are feeling adventurous, you can try out the new [NVv4-series](https://docs.microsoft.com/en-us/azure/virtual-machines/nvv4-series) with [AMD MI25](https://www.amd.com/en/products/professional-graphics/instinct-mi25) and AMD EPYC 7V12(Rome). No idea if this works, but please let me know if it does :)
+## Update 02/28/2025
+We are now using Parsec for 
 
 ## About
 
 Effortlessly stream the latest games on Azure. This project automates the set-up process for cloud gaming on a Nvidia M60 GPU on Azure.
 The development of this project is heavily inspired by this [excellent guide](https://lg.io/2016/10/12/cloudy-gamer-playing-overwatch-on-azures-new-monster-gpu-instances.html).
 
-The automated setup first deploys an Azure NV6 virtual machine (VM) with a single Nvidia M60 GPU (1/2 of a M60 graphics card), configures the official Nvidia Driver Extension that installs the Nvidia driver on the VM, and finally deploys a Custom Script Extension to run the setup script. The setup script configures everything that's needed to run Steam games on the VM, such as configuring some Nvidia driver settings, setting up auto login for Windows, and eventually connecting to ZeroTier VPN.
+The automated setup first deploys an Azure NC4as_T4_v3 virtual machine (VM) with a single Nvidia Tesla GPU, configures the official Nvidia Driver Extension that installs the Nvidia driver on the VM, and finally deploys a Custom Script Extension to run the setup script. The setup script configures everything that's needed to run Steam games on the VM, such as installing the Parsec remote desktop, installing Steam platform etc...
 
 ## Disclaimer
 
@@ -18,35 +16,15 @@ The automated setup first deploys an Azure NV6 virtual machine (VM) with a singl
 
 ## How Do I Stream Games?
 
-Your Azure VM and your local machine are connected through Steam. You can stream games through this connection using [Steam Remote Play](https://support.steampowered.com/kb_article.php?ref=3629-RIAV-1617).
-
-You can optionally use ZeroTier VPN by specifying a network ID in the deployment parameters, for other scenarios such as using a third-party streaming software.
+Your Azure VM and your local machine are connected through Steam. You can stream games after login into you parsec software using the same username and password both for your local machine and remote virtual desktop.
 
 ## How Much Bandwidth Does It Take?
 
-The bandwidth needed can vary drastically depending on your streaming host/client, game, and resolution. I recommend most people to limit their bandwidth to either 15 or 30 Mbits/sec. If you are streaming at higher than 1080P or just want to have the best possible experience, go with 50 Mbits/sec.
+The bandwidth needed can vary drastically depending on your streaming host/client, game, and resolution. The default set up is 30 Mb/sec.
 
 ## Pricing
 
-To game on the cloud on Azure, you will have to pay for the virtual machine, outgoing data bandwidth from the VM, and managed disk (See [Q & A](#q--a) for managed disk).
 
-You can pick between 2 kinds of VM: Standard and Spot. A Spot VM is around **60%** cheaper than a Standard VM. The downside is that a Spot VM can be shutdown at any time.
-
-The calculators below are prepopulated with an estimated monthly price for playing 35 hours a month in West US 2 region. It assumes that you stream at an averge of around 30 Mbits/second (13.5 GBs an hour) and use one 128GB managed disk. You can divide the total by 35 to find the estimated cost per hour.
-
-Azure also charges you for the number of transactions on managed disk. The calculator assumes 100k transactions a month (no idea how accurate this is).
-
-* [Price Calculator for Standard](https://azure.com/e/5479babbd37e46b68730b27e9fd1a641)
-* [Price Calculator for Spot](https://azure.com/e/f0e1298bc0984f178ba002d3316d9974)
-
-| Type          | Bandwidth (Mbits/sec) | Monthly Data (GBs) | Monthly Price* | Hourly Price* |
-| ------------- | --------------------: | -----------------: | -------------: | ------------: |
-| Standard      |                    30 |                473 |         $95.11 |         $2.72 |
-| Standard      |                    15 |                236 |         $74.49 |         $2.13 |
-| Spot          |                    30 |                473 |         $68.16 |         $1.95 |
-| Spot          |                    15 |                236 |         $47.54 |         $1.36 |
-
-*As of 05/06/2018
 
 ## Usage
 
@@ -136,16 +114,6 @@ You could manually deploy your VM through Azure portal, PowerShell, or Azure CLI
 4. Download https://github.com/ecalder6/azure-gaming/blob/master/setup.ps1. You could download this onto your local machine and paste it through remote desktop.
 5. Navigate to the directory containing setup.ps1 in PowerShell and execute
 
-```powershell
-powershell -ExecutionPolicy Unrestricted -File setup.ps1 -network {zero_tier_network_id} -admin_username {username_set_in_portal} -admin_password {password_set_in_portal} -manual_install
-```
-
-If you want to update windows, append
-
-```powershell
--windows_update
-```
-
 6. After some time, the script will restart your VM, at which point your remote desktop session will end.
 7. You can then remote desktop into your VM again a few minutes later. (1+ hour if you want to update Windows)
 8. Follow [Setup Steam](#setup-steam) from above.
@@ -168,68 +136,8 @@ If you no longer wish to game on Azure, you could remove everything by:
 3. Click on the resource group you've created.
 4. Click on delete resource group on the top.
 
-## Updating Nvidia Driver
-
-Go to [Install NVIDIA GPU drivers on N-series VMs running Windows](https://docs.microsoft.com/en-us/azure/virtual-machines/windows/n-series-driver-setup#nvidia-grid-drivers) to install the latest driver. Select Nvidia GRID driver for Windows Server 2016 for the NV series VM.
-
 ## Contribution
 
 Contributions are welcome! Please submit an issue and a PR for your change.
 
 ## Future work items
-
-* Explore the feasibility of [image](https://docs.microsoft.com/en-us/azure/virtual-machines/windows/capture-image-resource) and [snapshot](https://docs.microsoft.com/en-us/azure/virtual-machines/windows/snapshot-copy-managed-disk#next-steps)
-* Encrypt credentials for auto-login (achieved in [Autologon](https://docs.microsoft.com/en-us/sysinternals/downloads/autologon))
-
-## Q & A
-
-* What's the difference between a managed disk and a temporary drive?
-
-    A managed disk is a persisted virtual disk drive that costs a few dollars a month. A temporary drive (called temporary storage in the VM) is an actual disk drive that sits on the computer that hosts your VM. Temporary drive is free of charge and is much faster than a managed disk. However, data on temporary drive are not persisted and will be wiped when the VM is deallocated.
-
-    There are 3 types of managed disk, Standard HDD, Standard SSD and Premium SSD. The Standard disks have speeds similar to a typical hard drive, Standard SSD being more consistent than Standard HDD.
-
-* What if the game is too big for C:\? I don't want to reinstall it every time I restart the VM.
-
-    You can create a new managed disk and attach it to your VM. See [this documentation](https://docs.microsoft.com/en-us/azure/virtual-machines/windows/attach-managed-disk-portal) for more.
-
-* How secure are my credentials?
-
-    Your admin username and password you provide in the Azure portal form will be stored as plain text in 3 instances:
-    1. While the script is executing, they will be stored as plain-text in memory.
-    2. To facilitate auto-login for the VM, the credentials will be stored as plain-text in registry.
-
-    You are safe if no malicious third-party can access the memory or disk on your VM. Now since the only way to remote desktop into your VM is through the admin account, the credentials should be safe. Still, you should NOT reuse the admin username and password anywhere else.
-
-* Do I have to pay for my VM once it's shutdown?
-
-    It's depends on how you shut down your VM. You don't pay for the VM ONLY when it's **deallocated**. Stopping the VM through the portal or the auto-shutdown setting for standard VM should also deallocate the VM. Shutting down from Windows would not deallocate it. Still, it’s always a good idea to double check your VM status.
-
-* Steam on my local machine does not have the option to stream from VM?
-    * Make sure steam is installed and running on the VM.
-    * Restart Steam on your local machine
-    * If using ZeroTier Central, make sure that both your machine and the VM are connected under the members tab.
-
-
-* Steam Remote Play closes instantly after the splash screen ? Can't stream games because the screen is locked on the VM ?
-
-    Double click on disconnect.lnk on the VM desktop to close the remote desktop connection.
-
-* Double clicking on disconnect.lnk does nothing?
-
-    Right-click on disconnect.lnk and click Properties. In Target, change the "1" to "2":
-    ```powershell
-    C:\Windows\System32\tscon.exe 2 /dest:console
-    ```
-
-* Should I install the audio driver update for Steam?
-
-    By default, Steam won't stream any game before you install its audio driver on the VM. Steam installs it automatically without action on your part. Alternatively, you could launch steam with "-skipstreamingdrivers".
-
-* My Spot VM was deallocated. How do I get it back?
-
-    To add back a Spot VM, go to your VM in Azure Portal, and press Start. There is no guarantee that the allocation will succeed.
-
-* My question is not listed
-
-    Submit an issue on GitHub.

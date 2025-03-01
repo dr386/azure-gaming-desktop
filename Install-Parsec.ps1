@@ -13,21 +13,19 @@
 # Configuration variables
 $Global:TempDir = "C:\ParsecTemp"
 $Global:AppsDir = "$TempDir\Apps"
-$Global:ParsecInstallerUrl = "https://builds.parsecgaming.com/package/parsec-windows.exe"
-$Global:ParsecVddUrl = "https://builds.parsec.app/vdd/parsec-vdd-0.37.0.0.exe"
+$Global:ParsecInstallerUrl = "https://builds.parsec.app/package/parsec-windows.exe"
 $Global:ParsecConfigPath = "C:\ProgramData\Parsec\config.txt"
 $Global:ParsecCertPath = "$env:ProgramData\ParsecLoader\parsecpublic.cer"
 $Global:ProgressActivity = "Setting Up Parsec"
 $Global:ErrorLog = "$TempDir\parsec_install_errors.log"
 
-# Function to write progress with error handling
 Function Write-InstallProgress {
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory = $true)]
         [string]$Status,
         
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory = $true)]
         [int]$PercentComplete
     )
     
@@ -39,14 +37,13 @@ Function Write-InstallProgress {
     }
 }
 
-# Function to log errors
 Function Write-ErrorLog {
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory=$true)]
+        [Parameter(Mandatory = $true)]
         [string]$Message,
         
-        [Parameter(Mandatory=$false)]
+        [Parameter(Mandatory = $false)]
         [System.Management.Automation.ErrorRecord]$ErrorRecord
     )
     
@@ -68,7 +65,6 @@ Function Write-ErrorLog {
     }
 }
 
-# Create required directories
 Function Initialize-Directories {
     [CmdletBinding()]
     param()
@@ -93,7 +89,6 @@ Function Initialize-Directories {
     }
 }
 
-# Download required files with retry logic
 Function Get-ParsecResources {
     [CmdletBinding()]
     param()
@@ -102,12 +97,8 @@ Function Get-ParsecResources {
     
     $files = @{
         "Parsec Application" = @{
-            Url = $Global:ParsecInstallerUrl
+            Url         = $Global:ParsecInstallerUrl
             Destination = "$Global:AppsDir\parsec-windows.exe"
-        }
-        "Parsec Virtual Display Driver" = @{
-            Url = $Global:ParsecVddUrl
-            Destination = "$Global:AppsDir\parsec-vdd.exe"
         }
     }
     
@@ -157,7 +148,6 @@ Function Get-ParsecResources {
     return $allDownloadsSucceeded
 }
 
-# Install Parsec application
 Function Install-ParsecApplication {
     [CmdletBinding()]
     param()
@@ -172,8 +162,8 @@ Function Install-ParsecApplication {
         }
         
         $process = Start-Process -FilePath $installerPath -ArgumentList "/silent", "/shared" -Wait -PassThru -ErrorAction Stop
+        Write-Verbose "Parsec installation process completed with exit code $($process.ExitCode)"
         
-        # Verify installation by checking for Parsec executable
         $parsecExe = "$env:ProgramFiles\Parsec\parsecd.exe"
         
         if (-not (Test-Path -Path $parsecExe)) {
@@ -189,70 +179,6 @@ Function Install-ParsecApplication {
     }
 }
 
-# Install Parsec Virtual Display Driver
-Function Install-ParsecVDD {
-    [CmdletBinding()]
-    param()
-    
-    Write-InstallProgress -Status "Installing Parsec Virtual Display Driver" -PercentComplete 60
-    
-    try {
-        # Import certificate first
-        if (-not (Test-Path -Path $Global:ParsecCertPath)) {
-            throw "Parsec certificate not found at $Global:ParsecCertPath"
-        }
-        
-        Import-Certificate -CertStoreLocation "Cert:\LocalMachine\TrustedPublisher" -FilePath $Global:ParsecCertPath -ErrorAction Stop | Out-Null
-        Write-Verbose "Parsec certificate imported successfully"
-        
-        # Install VDD
-        $vddPath = "$Global:AppsDir\parsec-vdd.exe"
-        
-        if (-not (Test-Path -Path $vddPath)) {
-            throw "Parsec VDD installer not found at $vddPath"
-        }
-        
-        $process = Start-Process -FilePath $vddPath -ArgumentList "/silent" -PassThru
-        
-        # Wait for installation to complete with timeout
-        $maxWaitSeconds = 60
-        $timeout = New-TimeSpan -Seconds $maxWaitSeconds
-        $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-        $driverInstalled = $false
-        
-        Write-Verbose "Waiting for VDD installation to complete (timeout: $maxWaitSeconds seconds)..."
-        
-        while ($stopwatch.Elapsed -lt $timeout -and -not $driverInstalled) {
-            Start-Sleep -Seconds 2
-            
-            # Check if driver is installed
-            $device = Get-PnpDevice | Where-Object { $_.Name -eq "Parsec Virtual Display Adapter" } -ErrorAction SilentlyContinue
-            
-            if ($null -ne $device) {
-                $driverInstalled = $true
-                Write-Verbose "Parsec Virtual Display Adapter detected"
-            }
-        }
-        
-        # Clean up installer process if still running
-        if (Get-Process -Name parsec-vdd -ErrorAction SilentlyContinue) {
-            Stop-Process -Name parsec-vdd -Force -ErrorAction SilentlyContinue
-            Write-Verbose "Stopped parsec-vdd installer process"
-        }
-        
-        if (-not $driverInstalled) {
-            throw "Failed to detect Parsec Virtual Display Adapter within $maxWaitSeconds seconds"
-        }
-        
-        return $true
-    }
-    catch {
-        Write-ErrorLog -Message "Failed to install Parsec Virtual Display Driver" -ErrorRecord $_
-        return $false
-    }
-}
-
-# Configure Parsec settings
 Function Set-ParsecConfiguration {
     [CmdletBinding()]
     param()
@@ -261,24 +187,22 @@ Function Set-ParsecConfiguration {
     
     try {
         if (-not (Test-Path -Path $Global:ParsecConfigPath)) {
-            # Create empty config if it doesn't exist
             New-Item -Path $Global:ParsecConfigPath -ItemType File -Force -ErrorAction Stop | Out-Null
             Write-Verbose "Created new Parsec config file"
         }
         
-        # Read existing config
         $configContent = Get-Content -Path $Global:ParsecConfigPath -ErrorAction Stop
         
-        # Add required settings if not already present
         $settingsToAdd = @(
             "host_virtual_monitors = 1",
-            "host_privacy_mode = 1"
+            "host_privacy_mode = 1",
+            "encoder_bitrate=30",
+            "network_server_start_port=21165"
         )
         
         foreach ($setting in $settingsToAdd) {
             $settingName = $setting.Split("=")[0].Trim()
             
-            # Check if setting already exists
             $settingExists = $configContent | Where-Object { $_ -match "^$settingName\s*=" }
             
             if (-not $settingExists) {
@@ -287,7 +211,6 @@ Function Set-ParsecConfiguration {
             }
         }
         
-        # Save the updated config
         $configContent | Out-File -FilePath $Global:ParsecConfigPath -Encoding ascii -Force -ErrorAction Stop
         Write-Verbose "Parsec configuration updated successfully"
         
@@ -299,7 +222,6 @@ Function Set-ParsecConfiguration {
     }
 }
 
-# Disable conflicting display adapters
 Function Disable-ConflictingDisplayAdapters {
     [CmdletBinding()]
     param()
@@ -336,6 +258,18 @@ Function Disable-ConflictingDisplayAdapters {
     }
 }
 
+Function Remove-Resources {    
+    Write-InstallProgress -Status "Cleaning up temporary files" -PercentComplete 95
+    
+    try {
+        Remove-Item -Path $Global:TempDir -Recurse -Force -ErrorAction Stop
+        Write-Verbose "Temporary files removed"
+    }
+    catch {
+        Write-ErrorLog -Message "Failed to clean up temporary files" -ErrorRecord $_
+    }
+}
+
 # Main installation function
 Function Install-Parsec {
     [CmdletBinding()]
@@ -343,7 +277,6 @@ Function Install-Parsec {
     
     Write-Host "Starting Parsec installation..." -ForegroundColor Cyan
     
-    # Check for admin rights
     $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
     
     if (-not $isAdmin) {
@@ -351,19 +284,16 @@ Function Install-Parsec {
         return
     }
     
-    # Create error log directory
     if (-not (Test-Path -Path (Split-Path -Path $Global:ErrorLog -Parent))) {
         New-Item -Path (Split-Path -Path $Global:ErrorLog -Parent) -ItemType Directory -Force | Out-Null
     }
     
     $overallSuccess = $true
     
-    # Execute installation steps
     $steps = @(
         @{ Name = "Initialize-Directories"; Status = "Creating directories" },
         @{ Name = "Get-ParsecResources"; Status = "Downloading resources" },
         @{ Name = "Install-ParsecApplication"; Status = "Installing Parsec" },
-        @{ Name = "Install-ParsecVDD"; Status = "Installing Parsec Virtual Display Driver" },
         @{ Name = "Set-ParsecConfiguration"; Status = "Configuring Parsec" },
         @{ Name = "Disable-ConflictingDisplayAdapters"; Status = "Disabling conflicting adapters" }
     )
@@ -390,11 +320,11 @@ Function Install-Parsec {
             Write-ErrorLog -Message "Unhandled error in step '$($step.Name)'" -ErrorRecord $_
         }
     }
+
+    Remove-Resources
     
-    # Complete the progress bar
     Write-InstallProgress -Status "Installation complete" -PercentComplete 100
     
-    # Final status message
     if ($overallSuccess) {
         Write-Host "Parsec installation completed successfully!" -ForegroundColor Green
     }

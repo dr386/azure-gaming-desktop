@@ -89,3 +89,20 @@ resource "azurerm_virtual_machine_extension" "driver_extensions" {
     }
   SETTINGS
 }
+
+resource "azurerm_virtual_machine_extension" "custom_extension" {
+  for_each             = var.vm_configurations
+  name                 = "${each.value.name}-CustomExtension"
+  virtual_machine_id   = azurerm_windows_virtual_machine.vms[each.key].id
+  publisher            = "Microsoft.Compute"
+  type                 = "CustomScriptExtension"
+  type_handler_version = "1.10"
+
+  settings = jsonencode({
+    "fileUris" : [
+      "https://raw.githubusercontent.com/dr386/azure-gaming-desktop/master/setup.ps1"
+    ],
+    "commandToExecute" : "powershell.exe -ExecutionPolicy Unrestricted -File setup.ps1"
+  })
+}
+
