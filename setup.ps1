@@ -1,1 +1,1 @@
-Set-Content -Path "C:\Temp\test.txt" -Value "Hello World!"
+New-Item -ItemType File -Path "C:\Temp\test.txt" -Force | Set-Content -Value "Hello World!"
