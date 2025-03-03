@@ -81,7 +81,7 @@ resource "azurerm_virtual_machine_extension" "driver_extensions" {
   virtual_machine_id         = azurerm_windows_virtual_machine.vms[each.key].id
   publisher                  = "Microsoft.HpcCompute"
   type                       = "NvidiaGpuDriverWindows"
-  type_handler_version       = "1.9"
+  type_handler_version       = "1.10"
   auto_upgrade_minor_version = false
   settings                   = <<SETTINGS
     {
